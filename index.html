@@ -36,6 +36,23 @@
             box-sizing: border-box;
             z-index: 10;
         }
+        /* 名前変更エリアのスタイル */
+        .profile-edit {
+            padding: 10px 15px;
+            background: #192734;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .profile-edit input {
+            background: #15202b;
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 5px;
+            padding: 5px;
+            flex: 1;
+        }
         .editor-section { padding: 15px; border-bottom: 8px solid #253341; }
         textarea {
             width: 100%;
@@ -47,7 +64,7 @@
             resize: none;
             outline: none;
         }
-        .btn-post {
+        .btn-post, .btn-small {
             background: var(--primary-color);
             color: white;
             border: none;
@@ -56,7 +73,7 @@
             font-weight: bold;
             cursor: pointer;
         }
-        .btn-post:disabled { opacity: 0.5; }
+        .btn-small { padding: 5px 15px; font-size: 0.8rem; }
         .post-card {
             padding: 15px;
             border-bottom: 1px solid var(--border-color);
@@ -82,7 +99,6 @@
             display: flex;
             align-items: center;
             gap: 5px;
-            transition: 0.2s;
         }
         .like-button.active { color: #e0245e; }
         .login-screen { text-align: center; margin-top: 100px; }
@@ -93,7 +109,6 @@
     <div id="app" class="container">
         <div id="login-ui" class="login-screen" style="display: none;">
             <h1>Family English Diary</h1>
-            <p>Please login to start</p>
             <button class="btn-post" onclick="login()">Login with Google</button>
         </div>
 
@@ -103,8 +118,13 @@
                 <button onclick="logout()" style="background:none; border:none; color:var(--secondary-text); cursor:pointer;">Logout</button>
             </header>
 
+            <div class="profile-edit">
+                <input type="text" id="usernameInput" placeholder="Your name">
+                <button class="btn-small" onclick="updateProfile()">Save Name</button>
+            </div>
+
             <div class="editor-section">
-                <textarea id="diaryInput" placeholder="What's happening? (In English!)"></textarea>
+                <textarea id="diaryInput" placeholder="What's happening?"></textarea>
                 <div style="text-align: right;">
                     <button id="postBtn" class="btn-post" onclick="postDiary()">Post</button>
                 </div>
@@ -115,21 +135,18 @@
     </div>
 
     <script>
-        // --- 設定（自分のものに書き換えてワン！） ---
         const SUPABASE_URL = 'https://rbrpsccwwyldytcxmzae.supabase.co'; 
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicnBzY2N3d3lsZHl0Y3htemFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg1MzIsImV4cCI6MjA5NDMxNDUzMn0.lUHu3BcfTmLfkw_Cfp1yamnPoFzicKvQBBrugpjKB4Q';
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentUser = null;
 
-        // 起動時の処理
         window.onload = async () => {
             const { data: { session } } = await _supabase.auth.getSession();
             if (session) {
                 currentUser = session.user;
                 document.getElementById('main-ui').style.display = 'block';
-                // プロフィールがなければ作成
-                await checkProfile(session.user);
+                await loadMyProfile(session.user);
                 fetchDiaries();
             } else {
                 document.getElementById('login-ui').style.display = 'block';
@@ -139,26 +156,47 @@
         async function login() { await _supabase.auth.signInWithOAuth({ provider: 'google' }); }
         async function logout() { await _supabase.auth.signOut(); location.reload(); }
 
-        // プロフィールの自動登録
-        async function checkProfile(user) {
+        // 自分のプロフィールを読み込んで入力欄に入れる
+        async function loadMyProfile(user) {
             const { data } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
-            if (!data) {
+            if (data) {
+                document.getElementById('usernameInput').value = data.username;
+            } else {
+                // 初回登録
+                const initialName = user.user_metadata.full_name || 'New User';
                 await _supabase.from('profiles').insert([{
                     id: user.id,
-                    username: user.user_metadata.full_name || 'New User',
+                    username: initialName,
                     avatar_url: user.user_metadata.avatar_url || ''
                 }]);
+                document.getElementById('usernameInput').value = initialName;
             }
         }
 
-        // 日記の読み込み
+        // 名前を保存するワン！
+        async function updateProfile() {
+            const newName = document.getElementById('usernameInput').value;
+            if (!newName) return;
+            
+            const { error } = await _supabase
+                .from('profiles')
+                .update({ username: newName })
+                .eq('id', currentUser.id);
+
+            if (error) alert("Update failed: " + error.message);
+            else {
+                alert("Name updated!");
+                fetchDiaries(); // 日記の名前表示も更新するワン
+            }
+        }
+
         async function fetchDiaries() {
             const { data, error } = await _supabase
                 .from('posts')
                 .select('id, text, created_at, user_id, profiles(username, avatar_url), likes(user_id)')
                 .order('created_at', { ascending: false });
 
-            if (error) return console.error(error);
+            if (error) return;
 
             const list = document.getElementById('postList');
             list.innerHTML = "";
@@ -180,27 +218,21 @@
             });
         }
 
-        // 投稿
         async function postDiary() {
             const input = document.getElementById('diaryInput');
-            const btn = document.getElementById('postBtn');
             if (!input.value.trim()) return;
 
-            btn.disabled = true;
             const { error } = await _supabase.from('posts').insert([{
                 text: input.value,
                 user_id: currentUser.id
             }]);
 
-            if (error) alert("Error: " + error.message);
-            else {
+            if (!error) {
                 input.value = "";
                 fetchDiaries();
             }
-            btn.disabled = false;
         }
 
-        // いいね機能
         async function toggleLike(postId, isLiked) {
             if (isLiked) {
                 await _supabase.from('likes').delete().eq('post_id', postId).eq('user_id', currentUser.id);
