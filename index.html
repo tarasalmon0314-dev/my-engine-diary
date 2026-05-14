@@ -190,7 +190,7 @@
             // 投稿、投稿者のプロフ、いいねの情報を一括取得
             const { data, error } = await _supabase
                 .from('posts')
-                .select('*, profiles(*), likes(user_id)')
+                .select('*, profiles(*)')
                 .order('created_at', { ascending: false });
 
             if (!error && data) {
