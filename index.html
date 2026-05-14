@@ -1,20 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>ENGLISH DIARY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Diary App</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
-            --primary-color: #1d9bf0;
             --bg-color: #15202b;
-            --card-bg: #1e2732;
+            --container-bg: #15202b;
+            --primary-color: #1d9bf0;
             --text-color: #ffffff;
             --text-muted: #8899a6;
             --border-color: #38444d;
         }
 
         body {
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
@@ -26,226 +28,254 @@
 
         .container {
             width: 100%;
-            max-width: 600px;
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
+            max-width: 500px;
+            background: var(--container-bg);
             padding: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            position: sticky;
-            top: 20px;
-            z-index: 10;
+            box-sizing: border-box;
         }
 
         h1 {
-            color: var(--primary-color);
             font-size: 1.5rem;
-            margin-top: 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            margin-bottom: 20px;
+            color: var(--primary-color);
         }
 
         textarea {
             width: 100%;
             height: 120px;
-            background-color: transparent;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
             color: white;
-            border: none;
-            font-size: 1.2rem;
-            padding: 10px 0;
+            padding: 15px;
+            font-size: 1.1rem;
             resize: none;
-            outline: none; /* 選択時の青い枠線を消す */
+            box-sizing: border-box;
+            outline: none;
         }
 
-        .action-area {
-            border-top: 1px solid var(--border-color);
-            padding-top: 15px;
-            display: flex;
-            justify-content: flex-end;
+        textarea:focus {
+            border-color: var(--primary-color);
         }
 
         button {
             background-color: var(--primary-color);
             color: white;
             border: none;
-            padding: 10px 24px;
-            border-radius: 9999px; /* 完全に丸くする */
+            border-radius: 25px;
+            padding: 10px 20px;
             font-weight: bold;
-            font-size: 1rem;
             cursor: pointer;
-            transition: background 0.2s, transform 0.1s;
+            transition: opacity 0.2s;
         }
 
         button:hover {
-            background-color: #1a8cd8;
-            transform: scale(1.05);
+            opacity: 0.9;
         }
 
-        button:active {
-            transform: scale(0.95);
+        input[type="text"] {
+            background: #253341;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: white;
+            padding: 10px;
+            outline: none;
         }
 
-        /* 投稿一覧のスタイル */
         #postList {
             width: 100%;
-            max-width: 600px;
+            max-width: 500px;
             margin-top: 20px;
         }
 
         .post-card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            padding: 16px;
-            margin-bottom: 1px; /* タイムライン風に隙間を詰める */
-            animation: fadeIn 0.4s ease-out;
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 10px;
         }
 
         .post-time {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             color: var(--text-muted);
-            margin-bottom: 8px;
+            margin-bottom: 5px;
         }
 
         .post-text {
-            font-size: 1.05rem;
             line-height: 1.5;
-            white-space: pre-wrap; /* 改行を反映させる */
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            word-wrap: break-word;
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        
 </head>
 <body>
 
     <div class="container">
-        <h1><span>📝</span> ENGLISH DIARY</h1>
-        <textarea placeholder="Write your English thoughts..."></textarea>
-        <div id="wordCount" style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Words: 0</div>
-        <div class="action-area">
-            <button id="postBtn">Post</button>
         </div>
-    </div>
 
-    <div id="postList"></div>
-<script>
-    const SUPABASE_URL = 'https://rbrpsccwwyldytcxmzae.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicnBzY2N3d3lsZHl0Y3htemFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg1MzIsImV4cCI6MjA5NDMxNDUzMn0.lUHu3BcfTmLfkw_Cfp1yamnPoFzicKvQBBrugpjKB4Q';
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    <div id="postList">
+        </div>
 
-    // 要素の取得
-    const container = document.querySelector('.container');
-    const postList = document.getElementById('postList');
+    <script>
+        // --- 1. 初期設定 (自分のものに書き換えてワン！) ---
+        const SUPABASE_URL = 'https://rbrpsccwwyldytcxmzae.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicnBzY2N3d3lsZHl0Y3htemFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg1MzIsImV4cCI6MjA5NDMxNDUzMn0.lUHu3BcfTmLfkw_Cfp1yamnPoFzicKvQBBrugpjKB4Q';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    window.onload = async function() {
-        // 現在のログイン状態を確認
-        const { data: { session } } = await _supabase.auth.getSession();
-        
-        if (session) {
-            // ログイン済み：日記入力画面とログアウトボタンを表示
-            renderApp(session.user);
-            fetchDiaries(session.user.id);
-        } else {
-            // 未ログイン：ログインボタンだけを表示
-            renderLoginView();
-        }
-    };
+        const container = document.querySelector('.container');
+        const postList = document.getElementById('postList');
 
-    // --- 画面切り替え関数 ---
+        // --- 2. 起動時の処理 ---
+        window.onload = async function() {
+            const { data: { session } } = await _supabase.auth.getSession();
+            
+            if (session) {
+                renderApp(session.user);
+                await loadProfile(session.user.id); 
+                fetchDiaries(session.user.id);
+            } else {
+                renderLoginView();
+            }
+        };
 
-    function renderLoginView() {
-        container.innerHTML = `
-            <h1>📝 ENGLISH DIARY</h1>
-            <p style="text-align:center; color:var(--text-muted); margin-bottom:20px;">Please login to start your diary.</p>
-            <button onclick="login()" style="width:100%;">Login with Google</button>
-        `;
-        postList.innerHTML = "";
-    }
-
-    function renderApp(user) {
-        container.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h1>📝 ENGLISH DIARY</h1>
-                <button onclick="logout()" style="padding:5px 15px; font-size:0.8rem; background:#38444d;">Logout</button>
-            </div>
-            <textarea id="diaryInput" placeholder="Write your English thoughts..."></textarea>
-            <div id="wordCount" style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Words: 0</div>
-            <div class="action-area" style="margin-top:15px; display:flex; justify-content:flex-end;">
-                <button onclick="postDiary()">Post</button>
-            </div>
-        `;
-
-        // テキストエリアのイベントリスナーを再設定
-        const textarea = document.getElementById('diaryInput');
-        textarea.addEventListener('input', function() {
-            const words = this.value.trim() ? this.value.trim().split(/\s+/).length : 0;
-            document.getElementById('wordCount').innerText = `Words: ${words}`;
-        });
-    }
-
-    // --- データ操作関数 ---
-
-    async function login() {
-        await _supabase.auth.signInWithOAuth({ provider: 'google' });
-    }
-
-    async function logout() {
-        await _supabase.auth.signOut();
-        location.reload();
-    }
-
-    async function fetchDiaries(userId) {
-        const { data, error } = await _supabase
-            .from('posts')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false });
-
-        if (!error && data) {
+        // --- 3. 画面表示の切り替え関数 ---
+        function renderLoginView() {
+            container.innerHTML = `
+                <h1 style="text-align:center;">📝 ENGLISH DIARY</h1>
+                <p style="text-align:center; color:var(--text-muted); margin-bottom:20px;">Please login to start your diary.</p>
+                <button onclick="login()" style="width:100%;">Login with Google</button>
+            `;
             postList.innerHTML = "";
-            data.forEach(diary => displayDiary(diary.text, new Date(diary.created_at).toLocaleString(), diary.id));
         }
-    }
 
-    async function postDiary() {
-        const { data: { session } } = await _supabase.auth.getSession();
-        const text = document.getElementById('diaryInput').value;
-        if (!text || !session) return;
+        function renderApp(user) {
+            const initialName = user.user_metadata.full_name || "New User";
+            const initialIcon = user.user_metadata.avatar_url || "";
 
-        const { error } = await _supabase
-            .from('posts')
-            .insert([{ text: text, user_id: session.user.id }]);
-
-        if (error) alert(error.message);
-        else location.reload();
-    }
-
-    function displayDiary(text, time, id) {
-        const newPost = document.createElement('div');
-        newPost.className = 'post-card';
-        newPost.innerHTML = `
-            <div style="display: flex; justify-content: space-between;">
-                <div>
-                    <div class="post-time">${time}</div>
-                    <div class="post-text">${text}</div>
+            container.innerHTML = `
+                <div style="background:#192734; padding:15px; border-radius:15px; margin-bottom:20px; border:1px solid #38444d;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <img src="${initialIcon}" id="displayAvatar" style="width:45px; height:45px; border-radius:50%; border:2px solid var(--primary-color);">
+                            <span id="displayUsername" style="font-weight:bold; font-size:1.1rem;">${initialName}</span>
+                        </div>
+                        <button onclick="logout()" style="padding:5px 12px; font-size:0.75rem; background:#38444d; border:none; border-radius:20px;">Logout</button>
+                    </div>
+                    
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="usernameInput" placeholder="Change name..." style="margin:0; flex-grow:1; font-size:0.9rem; padding:8px;">
+                        <button onclick="updateProfile()" style="padding:0 15px; font-size:0.9rem;">Save</button>
+                    </div>
                 </div>
-                <button onclick="deleteDiary(${id})" style="background:none; color:#8899a6; border:none; cursor:pointer;">×</button>
-            </div>
-        `;
-        postList.appendChild(newPost);
-    }
 
-    async function deleteDiary(id) {
-        if (confirm("Delete?")) {
-            await _supabase.from('posts').delete().eq('id', id);
+                <textarea id="diaryInput" placeholder="What happened today in English?"></textarea>
+                <div id="wordCount" style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px; text-align:right;">Words: 0</div>
+                <div class="action-area" style="margin-top:10px; display:flex; justify-content:flex-end;">
+                    <button onclick="postDiary()" style="padding:10px 30px;">Post</button>
+                </div>
+            `;
+
+            const textarea = document.getElementById('diaryInput');
+            textarea.addEventListener('input', function() {
+                const words = this.value.trim() ? this.value.trim().split(/\s+/).length : 0;
+                document.getElementById('wordCount').innerText = `Words: ${words}`;
+            });
+        }
+
+        // --- 4. プロフィール操作 ---
+        async function loadProfile(userId) {
+            const { data, error } = await _supabase
+                .from('profiles')
+                .select('username, avatar_url')
+                .eq('id', userId)
+                .single();
+
+            if (data) {
+                if (data.username) document.getElementById('displayUsername').innerText = data.username;
+                if (data.avatar_url) document.getElementById('displayAvatar').src = data.avatar_url;
+            }
+        }
+
+        async function updateProfile() {
+            const { data: { session } } = await _supabase.auth.getSession();
+            const newName = document.getElementById('usernameInput').value;
+            if (!newName || !session) return;
+
+            const { error } = await _supabase
+                .from('profiles')
+                .upsert({ 
+                    id: session.user.id, 
+                    username: newName,
+                    updated_at: new Date()
+                });
+
+            if (error) alert("Error: " + error.message);
+            else {
+                alert("Name updated!");
+                location.reload();
+            }
+        }
+
+        // --- 5. 認証・日記操作 ---
+        async function login() {
+            await _supabase.auth.signInWithOAuth({ 
+                provider: 'google',
+                options: { redirectTo: location.href }
+            });
+        }
+
+        async function logout() {
+            await _supabase.auth.signOut();
             location.reload();
         }
-    }
-</script>
+
+        async function fetchDiaries(userId) {
+            const { data, error } = await _supabase
+                .from('posts')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+
+            if (!error && data) {
+                postList.innerHTML = "";
+                data.forEach(diary => {
+                    displayDiary(diary.text, new Date(diary.created_at).toLocaleString(), diary.id);
+                });
+            }
+        }
+
+        async function postDiary() {
+            const { data: { session } } = await _supabase.auth.getSession();
+            const text = document.getElementById('diaryInput').value;
+            if (!text || !session) return;
+
+            const { error } = await _supabase
+                .from('posts')
+                .insert([{ text: text, user_id: session.user.id }]);
+
+            if (error) alert("Post Error: " + error.message);
+            else location.reload();
+        }
+
+        function displayDiary(text, time, id) {
+            const newPost = document.createElement('div');
+            newPost.className = 'post-card';
+            newPost.innerHTML = `
+                <div style="display: flex; justify-content: space-between;">
+                    <div>
+                        <div class="post-time">${time}</div>
+                        <div class="post-text">${text}</div>
+                    </div>
+                    <button onclick="deleteDiary(${id})" style="background:none; color:#8899a6; border:none; cursor:pointer; font-size:1.2rem;">&times;</button>
+                </div>
+            `;
+            postList.appendChild(newPost);
+        }
+
+        async function deleteDiary(id) {
+            if (confirm("Delete this diary?")) {
+                const { error } = await _supabase.from('posts').delete().eq('id', id);
+                if (error) alert(error.message);
+                else location.reload();
+            }
+        }
+    </script>
 </body>
 </html>
