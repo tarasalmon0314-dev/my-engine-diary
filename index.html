@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Diary SNS</title>
+    <title>English Diary SNS - Full Version</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -48,6 +48,7 @@
             resize: none;
             box-sizing: border-box;
             outline: none;
+            margin-top: 10px;
         }
 
         button {
@@ -78,6 +79,7 @@
             border-radius: 50%;
             background: #253341;
             object-fit: cover;
+            border: 1px solid var(--border-color);
         }
 
         .post-content {
@@ -90,47 +92,33 @@
             margin-bottom: 4px;
         }
 
-        .username {
-            font-weight: bold;
-        }
-
-        .post-time {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        .post-text {
-            line-height: 1.4;
-            margin-bottom: 10px;
-            word-wrap: break-word;
-        }
+        .username { font-weight: bold; }
+        .post-time { font-size: 0.8rem; color: var(--text-muted); }
+        .post-text { line-height: 1.4; margin-bottom: 10px; word-wrap: break-word; }
 
         .like-button {
             background: none;
-            border: none;
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
             color: var(--text-muted);
-            padding: 0;
-            font-size: 0.9rem;
+            padding: 4px 12px;
+            font-size: 0.85rem;
             display: flex;
             align-items: center;
             gap: 5px;
+            transition: 0.2s;
         }
 
-        .like-button.active {
-            color: var(--like-color);
-        }
+        .like-button:hover { background: rgba(249, 24, 128, 0.1); }
+        .like-button.active { color: var(--like-color); border-color: var(--like-color); }
     </style>
 </head>
 <body>
 
-    <div class="container" id="mainContainer">
-        </div>
-
-    <div id="postList">
-        </div>
+    <div class="container" id="mainContainer"></div>
+    <div id="postList"></div>
 
     <script>
-        // --- 1. 初期設定 ---
         const SUPABASE_URL = 'https://rbrpsccwwyldytcxmzae.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicnBzY2N3d3lsZHl0Y3htemFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg1MzIsImV4cCI6MjA5NDMxNDUzMn0.lUHu3BcfTmLfkw_Cfp1yamnPoFzicKvQBBrugpjKB4Q';
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -142,42 +130,51 @@
             const { data: { session } } = await _supabase.auth.getSession();
             if (session) {
                 renderApp(session.user);
-                loadProfile(session.user.id);
-                fetchDiaries(); // 全員の投稿を取得
+                await loadProfile(session.user.id);
+                fetchDiaries();
             } else {
                 renderLoginView();
             }
         };
 
-        // --- 2. 画面描画 ---
         function renderLoginView() {
             mainContainer.innerHTML = `
-                <h1 style="text-align:center; color:var(--primary-color);">English SNS</h1>
+                <h1 style="text-align:center; color:var(--primary-color);">📝 English SNS</h1>
                 <button onclick="login()" style="width:100%;">Login with Google</button>
             `;
         }
 
         function renderApp(user) {
             mainContainer.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="" id="displayAvatar" class="avatar" style="width:40px; height:40px;">
-                        <span id="displayUsername" style="font-weight:bold;">Loading...</span>
+                <div style="background:#192734; padding:15px; border-radius:15px; margin-bottom:20px; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <img src="" id="displayAvatar" class="avatar" style="width:40px; height:40px;">
+                            <span id="displayUsername" style="font-weight:bold;">Loading...</span>
+                        </div>
+                        <button onclick="logout()" style="background:#38444d; padding:5px 12px; font-size:0.75rem;">Logout</button>
                     </div>
-                    <button onclick="logout()" style="background:#38444d; padding:5px 12px; font-size:0.8rem;">Logout</button>
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="usernameInput" placeholder="Change name..." style="flex-grow:1; background:#253341; border:1px solid var(--border-color); color:white; border-radius:10px; padding:8px;">
+                        <button onclick="updateProfile()" style="padding:0 15px; font-size:0.9rem;">Save</button>
+                    </div>
                 </div>
-                <div style="margin-bottom:15px; display:flex; gap:5px;">
-                    <input type="text" id="usernameInput" placeholder="New name..." style="flex-grow:1; background:#253341; border:1px solid var(--border-color); color:white; border-radius:10px; padding:5px 10px;">
-                    <button onclick="updateProfile()" style="padding:5px 15px;">Save</button>
-                </div>
-                <textarea id="diaryInput" placeholder="What's happening? (in English)"></textarea>
+
+                <textarea id="diaryInput" placeholder="What happened today in English?"></textarea>
+                <div id="wordCount" style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px; text-align:right;">Words: 0</div>
                 <div style="text-align:right; margin-top:10px;">
-                    <button onclick="postDiary()">Post</button>
+                    <button onclick="postDiary()" style="padding:10px 30px;">Post</button>
                 </div>
             `;
+
+            // 単語カウント機能の復活
+            const textarea = document.getElementById('diaryInput');
+            textarea.addEventListener('input', function() {
+                const words = this.value.trim() ? this.value.trim().split(/\s+/).length : 0;
+                document.getElementById('wordCount').innerText = `Words: ${words}`;
+            });
         }
 
-        // --- 3. プロフィール・日記取得 ---
         async function loadProfile(userId) {
             const { data } = await _supabase.from('profiles').select('*').eq('id', userId).single();
             if (data) {
@@ -187,57 +184,58 @@
         }
 
         async function fetchDiaries() {
-            // postsとprofilesを合体させ、さらにlikesの数も数える
+            const { data: { session } } = await _supabase.auth.getSession();
+            const currentUserId = session?.user?.id;
+
+            // 投稿、投稿者のプロフ、いいねの情報を一括取得
             const { data, error } = await _supabase
                 .from('posts')
-                .select('*, profiles(*), likes(count)')
+                .select('*, profiles(*), likes(user_id)')
                 .order('created_at', { ascending: false });
 
             if (!error && data) {
                 postList.innerHTML = "";
-                const { data: { session } } = await _supabase.auth.getSession();
-                
                 data.forEach(post => {
-                    displayPost(post, session?.user?.id);
+                    const name = post.profiles?.username || "Unknown";
+                    const icon = post.profiles?.avatar_url || "";
+                    const likes = post.likes || [];
+                    const isLiked = likes.some(l => l.user_id === currentUserId);
+
+                    const postCard = document.createElement('div');
+                    postCard.className = 'post-card';
+                    postCard.innerHTML = `
+                        <img src="${icon}" class="avatar">
+                        <div class="post-content">
+                            <div class="post-header">
+                                <span class="username">${name}</span>
+                                <span class="post-time">${new Date(post.created_at).toLocaleString()}</span>
+                            </div>
+                            <div class="post-text">${post.text}</div>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <button onclick="toggleLike(${post.id})" class="like-button ${isLiked ? 'active' : ''}">
+                                    ❤️ <span>${likes.length}</span> Good!
+                                </button>
+                                ${post.user_id === currentUserId ? `<button onclick="deletePost(${post.id})" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.2rem;">&times;</button>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    postList.appendChild(postCard);
                 });
             }
         }
 
-        function displayPost(post, currentUserId) {
-            const name = post.profiles?.username || "Unknown";
-            const icon = post.profiles?.avatar_url || "";
-            const likeCount = post.likes?.[0]?.count || 0;
-
-            const postCard = document.createElement('div');
-            postCard.className = 'post-card';
-            postCard.innerHTML = `
-                <img src="${icon}" class="avatar">
-                <div class="post-content">
-                    <div class="post-header">
-                        <span class="username">${name}</span>
-                        <span class="post-time">${new Date(post.created_at).toLocaleString()}</span>
-                    </div>
-                    <div class="post-text">${post.text}</div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <button onclick="toggleLike(${post.id})" class="like-button">
-                            ❤️ <span>${likeCount}</span> Good!
-                        </button>
-                        ${post.user_id === currentUserId ? `<button onclick="deletePost(${post.id})" style="background:none; border:none; color:var(--text-muted); cursor:pointer;">&times;</button>` : ''}
-                    </div>
-                </div>
-            `;
-            postList.appendChild(postCard);
-        }
-
-        // --- 4. アクション関数 ---
         async function postDiary() {
             const text = document.getElementById('diaryInput').value;
             const { data: { session } } = await _supabase.auth.getSession();
             if (!text || !session) return;
 
-            await _supabase.from('posts').insert([{ text: text, user_id: session.user.id }]);
-            document.getElementById('diaryInput').value = "";
-            fetchDiaries();
+            const { error } = await _supabase.from('posts').insert([{ text: text, user_id: session.user.id }]);
+            if (error) alert(error.message);
+            else {
+                document.getElementById('diaryInput').value = "";
+                document.getElementById('wordCount').innerText = "Words: 0";
+                fetchDiaries();
+            }
         }
 
         async function toggleLike(postId) {
@@ -264,21 +262,16 @@
             const { data: { session } } = await _supabase.auth.getSession();
             if (!newName || !session) return;
 
-            await _supabase.from('profiles').upsert({ id: session.user.id, username: newName });
+            await _supabase.from('profiles').upsert({ id: session.user.id, username: newName, updated_at: new Date() });
             loadProfile(session.user.id);
             fetchDiaries();
             alert("Name updated!");
         }
 
-        async function login() { 
-            await _supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } }); 
-        }
-        async function logout() { 
-            await _supabase.auth.signOut(); 
-            location.reload(); 
-        }
+        async function login() { await _supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } }); }
+        async function logout() { await _supabase.auth.signOut(); location.reload(); }
         async function deletePost(id) {
-            if (confirm("Delete?")) {
+            if (confirm("Delete this post?")) {
                 await _supabase.from('posts').delete().eq('id', id);
                 fetchDiaries();
             }
