@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ENGLISH DIARY</title>
+    <title>Family English Diary</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -12,6 +12,7 @@
             --text-color: #ffffff;
             --secondary-text: #8899a6;
             --border-color: #38444d;
+            --danger-color: #f44336;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -54,6 +55,7 @@
             width: 100%;
             box-sizing: border-box;
         }
+        /* 投稿エリア */
         .editor-section { padding: 15px; border-bottom: 8px solid #253341; }
         textarea {
             width: 100%;
@@ -75,6 +77,7 @@
             cursor: pointer;
         }
         .btn-small { padding: 8px 15px; font-size: 0.8rem; }
+        /* 日記カード */
         .post-card {
             padding: 15px;
             border-bottom: 1px solid var(--border-color);
@@ -89,21 +92,30 @@
             object-fit: cover;
             border: 1px solid var(--border-color);
         }
-        .post-content { flex: 1; }
-        .user-info { font-weight: bold; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+        .post-content { flex: 1; position: relative; }
+        .user-info { font-weight: bold; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
         .post-text { line-height: 1.4; margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
+        .action-buttons { display: flex; gap: 15px; align-items: center; }
         .like-button {
             background: none;
             border: none;
             color: var(--secondary-text);
             cursor: pointer;
-            padding: 5px;
+            padding: 5px 0;
             display: flex;
             align-items: center;
             gap: 5px;
             font-size: 0.9rem;
         }
         .like-button.active { color: #e0245e; }
+        .delete-button {
+            background: none;
+            border: none;
+            color: var(--secondary-text);
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .delete-button:hover { color: var(--danger-color); }
         .login-screen { text-align: center; margin-top: 100px; }
     </style>
 </head>
@@ -111,27 +123,27 @@
 
     <div id="app" class="container">
         <div id="login-ui" class="login-screen" style="display: none;">
-            <h1>ENGLISH DIARY</h1>
-            <p style="color: var(--secondary-text);">Share your daily life in English!</p>
+            <h1>Family English Diary 🐶</h1>
+            <p style="color: var(--secondary-text);">Connect with family through English!</p>
             <button class="btn-post" onclick="login()">Login with Google</button>
         </div>
 
         <div id="main-ui" style="display: none;">
             <header>
-                <strong>ENGLISH DIARY</strong>
+                <strong>Home</strong>
                 <button onclick="logout()" style="background:none; border:none; color:var(--secondary-text); cursor:pointer;">Logout</button>
             </header>
 
             <div class="profile-edit">
-                <input type="text" id="usernameInput" placeholder="Name (e.g. TARA)">
-                <input type="text" id="avatarInput" placeholder="Avatar URL (https://...)">
+                <input type="text" id="usernameInput" placeholder="Display Name">
+                <input type="text" id="avatarInput" placeholder="Avatar Image URL">
                 <div style="text-align: right;">
                     <button class="btn-small" onclick="updateProfile()">Save Profile</button>
                 </div>
             </div>
 
             <div class="editor-section">
-                <textarea id="diaryInput" placeholder="Express your world in English!"></textarea>
+                <textarea id="diaryInput" placeholder="What's happening?"></textarea>
                 <div style="text-align: right;">
                     <button id="postBtn" class="btn-post" onclick="postDiary()">Post</button>
                 </div>
@@ -142,14 +154,14 @@
     </div>
 
     <script>
-        // --- 設定：ここを自分のものに書き換えてワン！ ---
+        // --- 設定：自分のものに書き換えてワン！ ---
         const SUPABASE_URL = 'https://rbrpsccwwyldytcxmzae.supabase.co'; 
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicnBzY2N3d3lsZHl0Y3htemFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg1MzIsImV4cCI6MjA5NDMxNDUzMn0.lUHu3BcfTmLfkw_Cfp1yamnPoFzicKvQBBrugpjKB4Q';
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentUser = null;
 
-        // 初期化
+        // 起動・ログイン状態チェック
         window.onload = async () => {
             const { data: { session } } = await _supabase.auth.getSession();
             if (session) {
@@ -165,26 +177,23 @@
         async function login() { await _supabase.auth.signInWithOAuth({ provider: 'google' }); }
         async function logout() { await _supabase.auth.signOut(); location.reload(); }
 
-        // プロフィールの読み込みと初期登録
+        // プロフィール読み込み
         async function loadMyProfile(user) {
             const { data } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
             if (data) {
                 document.getElementById('usernameInput').value = data.username || "";
                 document.getElementById('avatarInput').value = data.avatar_url || "";
             } else {
+                // 初回のみ自動登録
                 const initialName = user.user_metadata.full_name || 'New User';
                 const initialAvatar = user.user_metadata.avatar_url || '';
-                await _supabase.from('profiles').insert([{
-                    id: user.id,
-                    username: initialName,
-                    avatar_url: initialAvatar
-                }]);
+                await _supabase.from('profiles').insert([{ id: user.id, username: initialName, avatar_url: initialAvatar }]);
                 document.getElementById('usernameInput').value = initialName;
                 document.getElementById('avatarInput').value = initialAvatar;
             }
         }
 
-        // プロフィール更新
+        // 5. プロフィール変更実行
         async function updateProfile() {
             const newName = document.getElementById('usernameInput').value;
             const newAvatar = document.getElementById('avatarInput').value;
@@ -196,27 +205,23 @@
                 .eq('id', currentUser.id);
 
             if (error) alert("Error updating profile: " + error.message);
-            else {
-                alert("Profile saved! ✨");
-                fetchDiaries();
-            }
+            else { alert("Profile updated! ✨"); fetchDiaries(); }
         }
 
-        // 日記取得（いいね情報とプロフィールを合体させて取得）
+        // 3. 日記表示（リスト取得）
         async function fetchDiaries() {
             const { data, error } = await _supabase
                 .from('posts')
-                .select('id, text, created_at, user_id, profiles(username, avatar_url), likes(user_id)')
+                .select('id, text, user_id, profiles(username, avatar_url), likes(user_id)')
                 .order('created_at', { ascending: false });
 
-            if (error) return console.error("Fetch error:", error);
+            if (error) return console.error(error);
 
             const list = document.getElementById('postList');
             list.innerHTML = "";
             data.forEach(post => {
-                // 自分がいいねしているか判定
                 const isLiked = post.likes?.some(l => l.user_id === currentUser?.id);
-                // 画像が割れないようにデフォルト画像を用意
+                const isMyPost = post.user_id === currentUser?.id;
                 const avatar = post.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${post.profiles?.username || 'U'}&background=random`;
 
                 const div = document.createElement('div');
@@ -224,38 +229,40 @@
                 div.innerHTML = `
                     <img src="${avatar}" class="avatar" onerror="this.src='https://via.placeholder.com/48?text=?'">
                     <div class="post-content">
-                        <div class="user-info">${escapeHtml(post.profiles?.username || 'Unknown')}</div>
+                        <div class="user-info">
+                            <span>${escapeHtml(post.profiles?.username || 'Unknown')}</span>
+                            ${isMyPost ? `<button class="delete-button" onclick="deletePost('${post.id}')">Delete</button>` : ''}
+                        </div>
                         <div class="post-text">${escapeHtml(post.text)}</div>
-                        <button class="like-button ${isLiked ? 'active' : ''}" onclick="toggleLike('${post.id}', ${isLiked})">
-                            ${isLiked ? '❤️' : '🤍'} ${post.likes?.length || 0} Likes
-                        </button>
+                        <div class="action-buttons">
+                            <button class="like-button ${isLiked ? 'active' : ''}" onclick="toggleLike('${post.id}', ${isLiked})">
+                                ${isLiked ? '❤️' : '🤍'} ${post.likes?.length || 0} Likes
+                            </button>
+                        </div>
                     </div>
                 `;
                 list.appendChild(div);
             });
         }
 
-        // 投稿
+        // 2. 投稿実行
         async function postDiary() {
             const input = document.getElementById('diaryInput');
-            const btn = document.getElementById('postBtn');
             if (!input.value.trim()) return;
-
-            btn.disabled = true;
-            const { error } = await _supabase.from('posts').insert([{
-                text: input.value,
-                user_id: currentUser.id
-            }]);
-
-            if (error) alert("Post error: " + error.message);
-            else {
-                input.value = "";
-                fetchDiaries();
-            }
-            btn.disabled = false;
+            const { error } = await _supabase.from('posts').insert([{ text: input.value, user_id: currentUser.id }]);
+            if (error) alert(error.message);
+            else { input.value = ""; fetchDiaries(); }
         }
 
-        // いいねの切り替え
+        // 6. 削除実行
+        async function deletePost(postId) {
+            if (!confirm("Delete this diary?")) return;
+            const { error } = await _supabase.from('posts').delete().eq('id', postId);
+            if (error) alert(error.message);
+            else fetchDiaries();
+        }
+
+        // 4. いいね実行
         async function toggleLike(postId, isLiked) {
             if (isLiked) {
                 await _supabase.from('likes').delete().eq('post_id', postId).eq('user_id', currentUser.id);
@@ -265,7 +272,7 @@
             fetchDiaries();
         }
 
-        // セキュリティ対策：HTMLエスケープ
+        // セキュリティ：HTMLエスケープ
         function escapeHtml(str) {
             const p = document.createElement('p');
             p.textContent = str;
