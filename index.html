@@ -3,107 +3,217 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Diary SNS - Debug Version</title>
+    <title>Family English Diary</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --bg-color: #15202b; --primary-color: #1d9bf0; --text-color: #ffffff; --border-color: #38444d; }
-        body { font-family: sans-serif; background-color: var(--bg-color); color: var(--text-color); padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .container { width: 100%; max-width: 500px; }
-        textarea { width: 100%; height: 100px; background: #192734; border: 1px solid var(--border-color); color: white; border-radius: 15px; padding: 10px; box-sizing: border-box; }
-        button { background: var(--primary-color); color: white; border: none; border-radius: 20px; padding: 10px 20px; cursor: pointer; font-weight: bold; }
-        .post-card { border-bottom: 1px solid var(--border-color); padding: 15px; display: flex; gap: 10px; width: 100%; }
-        .avatar { width: 48px; height: 48px; border-radius: 50%; background: #333; object-fit: cover; }
-        .error-msg { color: #ffadad; background: rgba(255,0,0,0.1); padding: 10px; border-radius: 10px; margin: 10px 0; font-size: 0.8rem; }
+        :root {
+            --bg-color: #15202b;
+            --primary-color: #1d9bf0;
+            --text-color: #ffffff;
+            --secondary-text: #8899a6;
+            --border-color: #38444d;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container { width: 100%; max-width: 500px; padding-bottom: 50px; }
+        header {
+            width: 100%;
+            padding: 15px;
+            position: sticky;
+            top: 0;
+            background: rgba(21, 32, 43, 0.9);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+        .editor-section { padding: 15px; border-bottom: 8px solid #253341; }
+        textarea {
+            width: 100%;
+            height: 100px;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            resize: none;
+            outline: none;
+        }
+        .btn-post {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 10px 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-post:disabled { opacity: 0.5; }
+        .post-card {
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 12px;
+        }
+        .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #333;
+            object-fit: cover;
+        }
+        .post-content { flex: 1; }
+        .user-info { font-weight: bold; margin-bottom: 4px; }
+        .post-text { line-height: 1.4; margin-bottom: 10px; white-space: pre-wrap; }
+        .like-button {
+            background: none;
+            border: none;
+            color: var(--secondary-text);
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: 0.2s;
+        }
+        .like-button.active { color: #e0245e; }
+        .login-screen { text-align: center; margin-top: 100px; }
     </style>
 </head>
 <body>
 
-    <div class="container" id="main">
-        <h2 id="status">Loading...</h2>
-        <div id="debug-area"></div>
-        <div id="editor"></div>
-        <div id="postList"></div>
+    <div id="app" class="container">
+        <div id="login-ui" class="login-screen" style="display: none;">
+            <h1>Family English Diary</h1>
+            <p>Please login to start</p>
+            <button class="btn-post" onclick="login()">Login with Google</button>
+        </div>
+
+        <div id="main-ui" style="display: none;">
+            <header>
+                <strong>Home</strong>
+                <button onclick="logout()" style="background:none; border:none; color:var(--secondary-text); cursor:pointer;">Logout</button>
+            </header>
+
+            <div class="editor-section">
+                <textarea id="diaryInput" placeholder="What's happening? (In English!)"></textarea>
+                <div style="text-align: right;">
+                    <button id="postBtn" class="btn-post" onclick="postDiary()">Post</button>
+                </div>
+            </div>
+
+            <div id="postList"></div>
+        </div>
     </div>
 
     <script>
+        // --- 設定（自分のものに書き換えてワン！） ---
         const SUPABASE_URL = 'https://rbrpsccwwyldytcxmzae.supabase.co'; 
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicnBzY2N3d3lsZHl0Y3htemFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg1MzIsImV4cCI6MjA5NDMxNDUzMn0.lUHu3BcfTmLfkw_Cfp1yamnPoFzicKvQBBrugpjKB4Q';
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        let currentUser = null;
+
+        // 起動時の処理
         window.onload = async () => {
             const { data: { session } } = await _supabase.auth.getSession();
             if (session) {
-                document.getElementById('status').innerText = "Logged in 📝";
-                renderEditor(session.user);
+                currentUser = session.user;
+                document.getElementById('main-ui').style.display = 'block';
+                // プロフィールがなければ作成
+                await checkProfile(session.user);
                 fetchDiaries();
             } else {
-                document.getElementById('status').innerHTML = '<button onclick="login()">Login with Google</button>';
+                document.getElementById('login-ui').style.display = 'block';
             }
         };
 
         async function login() { await _supabase.auth.signInWithOAuth({ provider: 'google' }); }
+        async function logout() { await _supabase.auth.signOut(); location.reload(); }
 
-        function renderEditor(user) {
-            document.getElementById('editor').innerHTML = `
-                <textarea id="diaryInput" placeholder="Write in English..."></textarea>
-                <div style="text-align:right; margin-top:10px;">
-                    <button onclick="postDiary()">Post</button>
-                </div>
-            `;
+        // プロフィールの自動登録
+        async function checkProfile(user) {
+            const { data } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
+            if (!data) {
+                await _supabase.from('profiles').insert([{
+                    id: user.id,
+                    username: user.user_metadata.full_name || 'New User',
+                    avatar_url: user.user_metadata.avatar_url || ''
+                }]);
+            }
         }
 
+        // 日記の読み込み
         async function fetchDiaries() {
-            // ここでエラーの詳細を捕まえるワン！
             const { data, error } = await _supabase
                 .from('posts')
-                .select(`
-                    id, 
-                    text, 
-                    created_at, 
-                    user_id,
-                    profiles ( username, avatar_url ),
-                    likes ( user_id )
-                `)
+                .select('id, text, created_at, user_id, profiles(username, avatar_url), likes(user_id)')
                 .order('created_at', { ascending: false });
 
-            if (error) {
-                console.error("Fetch Error:", error);
-                document.getElementById('debug-area').innerHTML = `
-                    <div class="error-msg">
-                        <strong>Fetch Error (400):</strong> ${error.message}<br>
-                        <small>Hint: Check if 'profiles' or 'likes' table has correct Foreign Keys.</small>
-                    </div>`;
-                return;
-            }
+            if (error) return console.error(error);
 
             const list = document.getElementById('postList');
             list.innerHTML = "";
             data.forEach(post => {
+                const isLiked = post.likes?.some(l => l.user_id === currentUser?.id);
                 const div = document.createElement('div');
                 div.className = 'post-card';
                 div.innerHTML = `
-                    <img src="${post.profiles?.avatar_url || ''}" class="avatar">
-                    <div>
-                        <strong>${post.profiles?.username || 'Unknown'}</strong>
-                        <p>${post.text}</p>
-                        <small style="color:#8899a6;">❤️ ${post.likes?.length || 0} Likes</small>
+                    <img src="${post.profiles?.avatar_url || 'https://via.placeholder.com/48'}" class="avatar">
+                    <div class="post-content">
+                        <div class="user-info">${post.profiles?.username || 'Unknown'}</div>
+                        <div class="post-text">${escapeHtml(post.text)}</div>
+                        <button class="like-button ${isLiked ? 'active' : ''}" onclick="toggleLike('${post.id}', ${isLiked})">
+                            ${isLiked ? '❤️' : '🤍'} ${post.likes?.length || 0}
+                        </button>
                     </div>
                 `;
                 list.appendChild(div);
             });
         }
 
+        // 投稿
         async function postDiary() {
-            const text = document.getElementById('diaryInput').value;
-            const { data: { session } } = await _supabase.auth.getSession();
-            if (!text || !session) return;
+            const input = document.getElementById('diaryInput');
+            const btn = document.getElementById('postBtn');
+            if (!input.value.trim()) return;
 
-            const { error } = await _supabase.from('posts').insert([{ text, user_id: session.user.id }]);
-            if (error) alert("Post Error: " + error.message);
+            btn.disabled = true;
+            const { error } = await _supabase.from('posts').insert([{
+                text: input.value,
+                user_id: currentUser.id
+            }]);
+
+            if (error) alert("Error: " + error.message);
             else {
-                document.getElementById('diaryInput').value = "";
+                input.value = "";
                 fetchDiaries();
             }
+            btn.disabled = false;
+        }
+
+        // いいね機能
+        async function toggleLike(postId, isLiked) {
+            if (isLiked) {
+                await _supabase.from('likes').delete().eq('post_id', postId).eq('user_id', currentUser.id);
+            } else {
+                await _supabase.from('likes').insert([{ post_id: postId, user_id: currentUser.id }]);
+            }
+            fetchDiaries();
+        }
+
+        function escapeHtml(str) {
+            const p = document.createElement('p');
+            p.textContent = str;
+            return p.innerHTML;
         }
     </script>
 </body>
