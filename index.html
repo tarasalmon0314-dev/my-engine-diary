@@ -134,93 +134,118 @@
 
     <div id="postList"></div>
 <script>
-    // 1. 【修正】URLの末尾の /rest/v1/ を削除し、初期化変数を変更
-    const SUPABASE_URL = 'https://rbrpsccwwyldytcxmzae.supabase.co'; 
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicnBzY2N3d3lsZHl0Y3htemFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg1MzIsImV4cCI6MjA5NDMxNDUzMn0.lUHu3BcfTmLfkw_Cfp1yamnPoFzicKvQBBrugpjKB4Q'; // ※
-    
-    // 変数名を _supabase にして、ライブラリの supabase と衝突しないようにします
+    const SUPABASE_URL = 'https://rbrpsccwwyldytcxmzae.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicnBzY2N3d3lsZHl0Y3htemFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg1MzIsImV4cCI6MjA5NDMxNDUzMn0.lUHu3BcfTmLfkw_Cfp1yamnPoFzicKvQBBrugpjKB4Q';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const textarea = document.querySelector('textarea');
-    const wordCountDisplay = document.getElementById('wordCount');
+    // 要素の取得
+    const container = document.querySelector('.container');
+    const postList = document.getElementById('postList');
 
-    // 2. ページ読み込み時にデータを取得
     window.onload = async function() {
-        console.log("Loading diaries...");
-        const { data, error } = await _supabase
-            .from('posts')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        if (error) {
-            console.error('Error fetching:', error);
-        } else if (data) {
-            data.forEach(diary => {
-                displayDiary(diary.text, new Date(diary.created_at).toLocaleString(), diary.id);
-            });
+        // 現在のログイン状態を確認
+        const { data: { session } } = await _supabase.auth.getSession();
+        
+        if (session) {
+            // ログイン済み：日記入力画面とログアウトボタンを表示
+            renderApp(session.user);
+            fetchDiaries(session.user.id);
+        } else {
+            // 未ログイン：ログインボタンだけを表示
+            renderLoginView();
         }
     };
 
-    // 3. 投稿する
-    async function postDiary() {
-        const text = textarea.value;
-        if (text === "") return;
+    // --- 画面切り替え関数 ---
 
+    function renderLoginView() {
+        container.innerHTML = `
+            <h1>📝 ENGLISH DIARY</h1>
+            <p style="text-align:center; color:var(--text-muted); margin-bottom:20px;">Please login to start your diary.</p>
+            <button onclick="login()" style="width:100%;">Login with Google</button>
+        `;
+        postList.innerHTML = "";
+    }
+
+    function renderApp(user) {
+        container.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h1>📝 ENGLISH DIARY</h1>
+                <button onclick="logout()" style="padding:5px 15px; font-size:0.8rem; background:#38444d;">Logout</button>
+            </div>
+            <textarea id="diaryInput" placeholder="Write your English thoughts..."></textarea>
+            <div id="wordCount" style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">Words: 0</div>
+            <div class="action-area" style="margin-top:15px; display:flex; justify-content:flex-end;">
+                <button onclick="postDiary()">Post</button>
+            </div>
+        `;
+
+        // テキストエリアのイベントリスナーを再設定
+        const textarea = document.getElementById('diaryInput');
+        textarea.addEventListener('input', function() {
+            const words = this.value.trim() ? this.value.trim().split(/\s+/).length : 0;
+            document.getElementById('wordCount').innerText = `Words: ${words}`;
+        });
+    }
+
+    // --- データ操作関数 ---
+
+    async function login() {
+        await _supabase.auth.signInWithOAuth({ provider: 'google' });
+    }
+
+    async function logout() {
+        await _supabase.auth.signOut();
+        location.reload();
+    }
+
+    async function fetchDiaries(userId) {
         const { data, error } = await _supabase
             .from('posts')
-            .insert([{ text: text }])
-            .select();
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
 
-        if (error) {
-            console.error(error);
-            alert("Error saving: " + error.message);
-        } else {
-            location.reload();
+        if (!error && data) {
+            postList.innerHTML = "";
+            data.forEach(diary => displayDiary(diary.text, new Date(diary.created_at).toLocaleString(), diary.id));
         }
     }
 
-    // 4. 削除する
-    async function deleteDiary(id) {
-        if (confirm("Delete this diary?")) {
-            const { error } = await _supabase
-                .from('posts')
-                .delete()
-                .eq('id', id);
+    async function postDiary() {
+        const { data: { session } } = await _supabase.auth.getSession();
+        const text = document.getElementById('diaryInput').value;
+        if (!text || !session) return;
 
-            if (error) {
-                alert("Error deleting!");
-            } else {
-                location.reload();
-            }
-        }
+        const { error } = await _supabase
+            .from('posts')
+            .insert([{ text: text, user_id: session.user.id }]);
+
+        if (error) alert(error.message);
+        else location.reload();
     }
 
     function displayDiary(text, time, id) {
-        const postList = document.getElementById('postList');
-        const words = text ? text.trim().split(/\s+/).length : 0;
-
         const newPost = document.createElement('div');
         newPost.className = 'post-card';
         newPost.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="display: flex; justify-content: space-between;">
                 <div>
-                    <div class="post-time">${time} | ${words} words</div>
+                    <div class="post-time">${time}</div>
                     <div class="post-text">${text}</div>
                 </div>
-                <button onclick="deleteDiary(${id})" style="background: none; color: #8899a6; cursor: pointer; border: none; font-size: 1.2rem;">×</button>
+                <button onclick="deleteDiary(${id})" style="background:none; color:#8899a6; border:none; cursor:pointer;">×</button>
             </div>
         `;
         postList.appendChild(newPost);
     }
 
-    // イベントリスナーの設定
-    document.getElementById('postBtn').addEventListener('click', postDiary);
-    
-    textarea.addEventListener('input', function() {
-        const text = this.value.trim();
-        const words = text ? text.split(/\s+/).length : 0;
-        wordCountDisplay.innerText = `Words: ${words}`;
-    });
+    async function deleteDiary(id) {
+        if (confirm("Delete?")) {
+            await _supabase.from('posts').delete().eq('id', id);
+            location.reload();
+        }
+    }
 </script>
 </body>
 </html>
